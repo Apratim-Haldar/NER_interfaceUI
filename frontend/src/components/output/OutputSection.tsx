@@ -56,6 +56,15 @@ export default function OutputSection({
   const resolveGlobalIndex = (localIndex: number) =>
     spanIndexMap ? (spanIndexMap[localIndex] ?? localIndex) : localIndex
 
+  const getSpanBioSequence = (start: number, end: number) => {
+    const labels = tokens
+      .filter((token) => token.start >= start && token.end <= end && token.bio_label !== "O")
+      .map((token) => toDisplayBioLabel(token.bio_label))
+
+    if (labels.length === 0) return ""
+    return labels.join(" ")
+  }
+
   const selectedLocalIndex =
     selectedIndex === null
       ? null
@@ -108,6 +117,7 @@ export default function OutputSection({
         spanIndex: entitySpanIndex,
         text: data.text.slice(span.start, span.end),
         bioLabel: span.bio_label,
+        bioLabelSequence: getSpanBioSequence(span.start, span.end),
       }
     })
     .filter((item) => item !== null)
@@ -159,7 +169,7 @@ export default function OutputSection({
               >
                 {item.text}
                 <span className="ml-1.5 text-[10px] uppercase font-bold opacity-60 tracking-wider">
-                  {toDisplayBioLabel(item.bioLabel)}
+                  {item.bioLabelSequence || toDisplayBioLabel(item.bioLabel)}
                 </span>
               </span>
             </span>
