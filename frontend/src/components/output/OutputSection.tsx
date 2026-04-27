@@ -40,16 +40,17 @@ export default function OutputSection({
     if (index === 0) return false
 
     const previous = tokens[index - 1]
-    if (!previous.bio_label.includes("-")) return false
+    if (!(previous.bio_label.startsWith("B-") || previous.bio_label.startsWith("I-"))) {
+      return false
+    }
 
     const currentEntity = token.bio_label.split("-")[1]
     const previousEntity = previous.bio_label.split("-")[1]
     if (currentEntity !== previousEntity) return false
 
-    return (
-      previous.end === token.start
-      && (previous.bio_label.startsWith("B-") || previous.bio_label.startsWith("I-"))
-    )
+    // Multi-word entities usually have whitespace between token boundaries.
+    // Treat consecutive B/I tokens with the same entity as one rendered span.
+    return true
   }
 
   const resolveGlobalIndex = (localIndex: number) =>
