@@ -55,15 +55,6 @@ export default function OutputSection({
   const resolveGlobalIndex = (localIndex: number) =>
     spanIndexMap ? (spanIndexMap[localIndex] ?? localIndex) : localIndex
 
-  const getSpanBioSequence = (start: number, end: number) => {
-    const labels = tokens
-      .filter((token) => token.start >= start && token.end <= end && token.bio_label !== "O")
-      .map((token) => toDisplayBioLabel(token.bio_label))
-
-    if (labels.length === 0) return ""
-    return labels.join(" ")
-  }
-
   const selectedLocalIndex =
     selectedIndex === null
       ? null
@@ -116,7 +107,6 @@ export default function OutputSection({
         spanIndex: entitySpanIndex,
         text: data.text.slice(span.start, span.end),
         bioLabel: span.bio_label,
-        bioLabelSequence: getSpanBioSequence(span.start, span.end),
       }
     })
     .filter((item) => item !== null)
@@ -160,15 +150,15 @@ export default function OutputSection({
               <span
                 onClick={() => setSelectedIndex(globalSpanIndex)}
                 className={`
-                  px-1.5 py-0.5 rounded-md cursor-pointer inline-flex items-center border transition-all duration-200 align-middle max-w-full
+                  px-1.5 py-0.5 rounded-md cursor-pointer inline-flex items-center gap-1 border transition-all duration-200
                   ${getColorClasses(item.bioLabel)}
                   ${isSameWord && !isExactSelected ? "ring-2 ring-primary/40" : ""}
                   ${isExactSelected ? "ring-2 ring-primary shadow-sm z-10 relative" : ""}
                 `}
               >
-                {item.text}
-                <span className="ml-1.5 text-[10px] uppercase font-bold opacity-60 tracking-wider">
-                  {item.bioLabelSequence || toDisplayBioLabel(item.bioLabel)}
+                <span className="whitespace-nowrap">{item.text}</span>
+                <span className="text-[10px] uppercase font-bold opacity-60 tracking-wider">
+                  {toDisplayBioLabel(item.bioLabel)}
                 </span>
               </span>
             </span>
