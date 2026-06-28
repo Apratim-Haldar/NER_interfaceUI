@@ -117,7 +117,6 @@ export interface FeedbackMetricsResponse {
   wrong_tags: number;
   estimated_accuracy: number;
 }
-}
 
 export interface IAAPairScore {
   document_snippet: string;
