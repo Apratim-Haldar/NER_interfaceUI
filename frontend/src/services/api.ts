@@ -6,6 +6,7 @@ import type {
   FeedbackMetricsResponse,
   LiveHealthResponse,
   PredictionResponse,
+  IAAMetricsResponse,
 } from "../types"
 import { supabase } from "../lib/supabase"
 
@@ -42,3 +43,6 @@ export const saveFeedbackAnalysis = (payload: FeedbackAnalysisRequest) =>
 
 export const getFeedbackPerformance = () =>
   API.get<FeedbackMetricsResponse>("/model/performance/feedback")
+
+export const getIAAMetrics = () =>
+  API.get<IAAMetricsResponse>("/model/performance/iaa")

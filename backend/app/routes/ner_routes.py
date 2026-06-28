@@ -5,9 +5,13 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 from time import perf_counter
 from typing import Dict, List
+import os
+import re
+import requests
+from sklearn.metrics import cohen_kappa_score
 
 from fastapi import APIRouter, Depends, HTTPException
-from ..auth import CurrentUser, get_current_user
+from ..auth import CurrentUser, get_current_user, _get_config_value
 from ..model_metrics import get_benchmark_metrics
 from ..schemas import (
     BenchmarkPerformanceResponse,
@@ -16,6 +20,8 @@ from ..schemas import (
     FeedbackMetricsResponse,
     LiveHealthResponse,
     TextRequest,
+    IAAMetricsResponse,
+    IAAPairScore,
 )
 from ..inference import predict_text
 
@@ -352,6 +358,87 @@ def get_feedback_metrics(current_user: CurrentUser = Depends(get_current_user)):
         "total_edits": total_edits,
         "changed_to_o": changed_to_o,
         "changed_from_o": changed_from_o,
-        "transitions": dict(transitions),
         "new_label_distribution": dict(new_distribution),
+    }
+
+
+@router.get("/model/performance/iaa", response_model=IAAMetricsResponse)
+def get_iaa_metrics(_: CurrentUser = Depends(get_current_user)):
+    supabase_url = _get_config_value("SUPABASE_URL") or _get_config_value("VITE_SUPABASE_URL")
+    service_role_key = _get_config_value("SUPABASE_SERVICE_ROLE_KEY")
+
+    if not supabase_url or not service_role_key:
+        # If no service key is set, we return empty rather than failing, so the UI doesn't break
+        return {"global_kappa_score": None, "pair_scores": []}
+
+    endpoint = f"{supabase_url.rstrip('/')}/rest/v1/predictions?select=user_id,input_text,output_tokens"
+    headers = {
+        "apikey": service_role_key,
+        "Authorization": f"Bearer {service_role_key}",
+        "Content-Profile": "public"
+    }
+
+    try:
+        response = requests.get(endpoint, headers=headers)
+        response.raise_for_status()
+        predictions = response.json()
+    except Exception as e:
+        print(f"Failed to fetch predictions for IAA: {e}")
+        return {"global_kappa_score": None, "pair_scores": []}
+
+    # Group predictions by normalized text
+    grouped = {}
+    for p in predictions:
+        text = p.get("input_text", "")
+        # Normalize text: lower, strip, remove multi-spaces
+        norm_text = re.sub(r'\s+', ' ', text.strip().lower())
+        if not norm_text:
+            continue
+        grouped.setdefault(norm_text, []).append(p)
+
+    pair_scores = []
+    
+    for norm_text, group in grouped.items():
+        # Get unique users
+        users = list({p["user_id"]: p for p in group}.values())
+        if len(users) < 2:
+            continue
+            
+        # For simplicity, if > 2 users, just compare the first 2
+        user1, user2 = users[0], users[1]
+        
+        tokens1 = user1.get("output_tokens", [])
+        tokens2 = user2.get("output_tokens", [])
+        
+        if len(tokens1) != len(tokens2):
+            continue
+            
+        labels1 = [t.get("bio_label", "O") for t in tokens1]
+        labels2 = [t.get("bio_label", "O") for t in tokens2]
+        
+        # Calculate Kappa
+        if not labels1:
+            continue
+            
+        kappa = cohen_kappa_score(labels1, labels2)
+        
+        # Format a snippet for the UI
+        snippet = user1.get("input_text", "")
+        if len(snippet) > 60:
+            snippet = snippet[:57] + "..."
+            
+        pair_scores.append({
+            "document_snippet": snippet,
+            "user1_id": user1["user_id"][:8] + "...",
+            "user2_id": user2["user_id"][:8] + "...",
+            "kappa_score": kappa
+        })
+
+    global_kappa = None
+    if pair_scores:
+        global_kappa = sum(p["kappa_score"] for p in pair_scores) / len(pair_scores)
+
+    return {
+        "global_kappa_score": global_kappa,
+        "pair_scores": pair_scores
     }
