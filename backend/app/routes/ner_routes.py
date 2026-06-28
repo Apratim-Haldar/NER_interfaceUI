@@ -370,7 +370,7 @@ def get_iaa_metrics(_: CurrentUser = Depends(get_current_user)):
 
     if not supabase_url or not service_role_key:
         # If no service key is set, we return empty rather than failing, so the UI doesn't break
-        return {"global_kappa_score": None, "pair_scores": []}
+        return {"global_kappa_score": None, "document_scores": []}
 
     endpoint = f"{supabase_url.rstrip('/')}/rest/v1/predictions?select=user_id,input_text,output_tokens"
     headers = {
@@ -385,7 +385,7 @@ def get_iaa_metrics(_: CurrentUser = Depends(get_current_user)):
         predictions = response.json()
     except Exception as e:
         print(f"Failed to fetch predictions for IAA: {e}")
-        return {"global_kappa_score": None, "pair_scores": []}
+        return {"global_kappa_score": None, "document_scores": []}
 
     # Group predictions by normalized text
     grouped = {}
@@ -397,7 +397,8 @@ def get_iaa_metrics(_: CurrentUser = Depends(get_current_user)):
             continue
         grouped.setdefault(norm_text, []).append(p)
 
-    pair_scores = []
+    document_scores = []
+    import itertools
     
     for norm_text, group in grouped.items():
         # Get unique users
@@ -405,41 +406,45 @@ def get_iaa_metrics(_: CurrentUser = Depends(get_current_user)):
         if len(users) < 2:
             continue
             
-        # For simplicity, if > 2 users, just compare the first 2
-        user1, user2 = users[0], users[1]
+        kappas = []
+        for user1, user2 in itertools.combinations(users, 2):
+            tokens1 = user1.get("output_tokens", [])
+            tokens2 = user2.get("output_tokens", [])
+            
+            if len(tokens1) != len(tokens2):
+                continue
+                
+            labels1 = [t.get("bio_label", "O") for t in tokens1]
+            labels2 = [t.get("bio_label", "O") for t in tokens2]
+            
+            if not labels1:
+                continue
+                
+            kappa = cohen_kappa_score(labels1, labels2)
+            if kappa == kappa: # filter out NaN
+                kappas.append(kappa)
         
-        tokens1 = user1.get("output_tokens", [])
-        tokens2 = user2.get("output_tokens", [])
-        
-        if len(tokens1) != len(tokens2):
+        if not kappas:
             continue
             
-        labels1 = [t.get("bio_label", "O") for t in tokens1]
-        labels2 = [t.get("bio_label", "O") for t in tokens2]
-        
-        # Calculate Kappa
-        if not labels1:
-            continue
-            
-        kappa = cohen_kappa_score(labels1, labels2)
+        avg_kappa = sum(kappas) / len(kappas)
         
         # Format a snippet for the UI
-        snippet = user1.get("input_text", "")
+        snippet = users[0].get("input_text", "")
         if len(snippet) > 60:
             snippet = snippet[:57] + "..."
             
-        pair_scores.append({
+        document_scores.append({
             "document_snippet": snippet,
-            "user1_id": user1["user_id"][:8] + "...",
-            "user2_id": user2["user_id"][:8] + "...",
-            "kappa_score": kappa
+            "annotator_count": len(users),
+            "average_kappa": avg_kappa
         })
 
     global_kappa = None
-    if pair_scores:
-        global_kappa = sum(p["kappa_score"] for p in pair_scores) / len(pair_scores)
+    if document_scores:
+        global_kappa = sum(p["average_kappa"] for p in document_scores) / len(document_scores)
 
     return {
         "global_kappa_score": global_kappa,
-        "pair_scores": pair_scores
+        "document_scores": document_scores
     }

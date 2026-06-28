@@ -118,14 +118,13 @@ export interface FeedbackMetricsResponse {
   estimated_accuracy: number;
 }
 
-export interface IAAPairScore {
+export interface IAADocumentScore {
   document_snippet: string;
-  user1_id: string;
-  user2_id: string;
-  kappa_score: number;
+  annotator_count: number;
+  average_kappa: number;
 }
 
 export interface IAAMetricsResponse {
   global_kappa_score: number | null;
-  pair_scores: IAAPairScore[];
+  document_scores: IAADocumentScore[];
 }
