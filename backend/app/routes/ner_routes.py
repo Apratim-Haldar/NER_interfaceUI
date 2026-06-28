@@ -358,6 +358,7 @@ def get_feedback_metrics(current_user: CurrentUser = Depends(get_current_user)):
         "total_edits": total_edits,
         "changed_to_o": changed_to_o,
         "changed_from_o": changed_from_o,
+        "transitions": dict(transitions),
         "new_label_distribution": dict(new_distribution),
     }
 
