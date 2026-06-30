@@ -101,3 +101,14 @@ class FeedbackMetricsResponse(BaseModel):
     changed_from_o: int
     transitions: Dict[str, int]
     new_label_distribution: Dict[str, int]
+
+
+class IAADocumentScore(BaseModel):
+    document_snippet: str
+    annotator_count: int
+    average_kappa: float
+
+
+class IAAMetricsResponse(BaseModel):
+    global_kappa_score: Optional[float] = None
+    document_scores: List[IAADocumentScore]

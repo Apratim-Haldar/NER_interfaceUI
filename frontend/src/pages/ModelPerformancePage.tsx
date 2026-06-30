@@ -3,11 +3,13 @@ import type {
   BenchmarkPerformanceResponse,
   FeedbackMetricsResponse,
   LiveHealthResponse,
+  IAAMetricsResponse,
 } from "../types"
 import {
   getBenchmarkPerformance,
   getFeedbackPerformance,
   getLivePerformance,
+  getIAAMetrics,
 } from "../services/api"
 import { toDisplayBioLabel, toDisplayTransitionLabel } from "../lib/labelAlias"
 
@@ -25,6 +27,7 @@ export default function ModelPerformancePage() {
   const [benchmark, setBenchmark] = useState<BenchmarkPerformanceResponse | null>(null)
   const [live, setLive] = useState<LiveHealthResponse | null>(null)
   const [feedback, setFeedback] = useState<FeedbackMetricsResponse | null>(null)
+  const [iaa, setIaa] = useState<IAAMetricsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,14 +35,16 @@ export default function ModelPerformancePage() {
     try {
       setLoading(true)
       setError(null)
-      const [benchmarkRes, liveRes, feedbackRes] = await Promise.all([
+      const [benchmarkRes, liveRes, feedbackRes, iaaRes] = await Promise.all([
         getBenchmarkPerformance(),
         getLivePerformance(),
         getFeedbackPerformance(),
+        getIAAMetrics(),
       ])
       setBenchmark(benchmarkRes.data)
       setLive(liveRes.data)
       setFeedback(feedbackRes.data)
+      setIaa(iaaRes.data)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load model performance")
     } finally {
@@ -204,6 +209,64 @@ export default function ModelPerformancePage() {
               <div>Success / Errors: {live?.success_requests ?? 0} / {live?.error_requests ?? 0}</div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-slate-900">Inter-Annotator Agreement (IAA)</h2>
+        <p className="text-sm text-slate-500 mt-2 mb-5">
+          Measures annotation consistency between users on identical texts (Cohen's Kappa). Scores {'>'} 0.8 indicate almost perfect agreement.
+        </p>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Global Kappa Score</div>
+            <div className={`text-2xl font-bold mt-1 ${
+              iaa?.global_kappa_score === null || iaa?.global_kappa_score === undefined ? 'text-slate-900' :
+              iaa.global_kappa_score >= 0.8 ? 'text-green-600' :
+              iaa.global_kappa_score >= 0.4 ? 'text-yellow-600' : 'text-red-600'
+            }`}>
+              {fmt(iaa?.global_kappa_score)}
+            </div>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Overlapping Texts</div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">{iaa?.document_scores?.length ?? 0}</div>
+          </div>
+        </div>
+
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-100 text-slate-700">
+              <tr>
+                <th className="text-left p-3">Document Snippet</th>
+                <th className="text-left p-3">Unique Annotators</th>
+                <th className="text-left p-3">Average Kappa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(!iaa?.document_scores || iaa.document_scores.length === 0) ? (
+                <tr>
+                  <td className="p-3 text-slate-500 text-center" colSpan={3}>
+                    No overlapping annotations found between multiple users yet.
+                  </td>
+                </tr>
+              ) : (
+                iaa.document_scores.map((doc, idx) => (
+                  <tr key={idx} className="border-t border-slate-200">
+                    <td className="p-3 text-slate-700 italic truncate max-w-xs" title={doc.document_snippet}>"{doc.document_snippet}"</td>
+                    <td className="p-3 text-slate-700 font-medium">{doc.annotator_count}</td>
+                    <td className={`p-3 font-medium ${
+                      doc.average_kappa >= 0.8 ? 'text-green-600' :
+                      doc.average_kappa >= 0.4 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {doc.average_kappa.toFixed(3)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
 
