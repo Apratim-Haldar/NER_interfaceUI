@@ -11,3 +11,7 @@ frontend/.env
 .env.*
 !.env.example
 main.pdf
+.gitignore
+IWIN 2026 Final Paper.pdf
+Conference Management Toolkit - View review.pdf
+predictions_rows.csv
