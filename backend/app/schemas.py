@@ -103,13 +103,12 @@ class FeedbackMetricsResponse(BaseModel):
     new_label_distribution: Dict[str, int]
 
 
-class IAAPairScore(BaseModel):
+class IAADocumentScore(BaseModel):
     document_snippet: str
-    user1_id: str
-    user2_id: str
-    kappa_score: float
+    annotator_count: int
+    average_kappa: float
 
 
 class IAAMetricsResponse(BaseModel):
     global_kappa_score: Optional[float] = None
-    pair_scores: List[IAAPairScore]
+    document_scores: List[IAADocumentScore]

@@ -231,7 +231,7 @@ export default function ModelPerformancePage() {
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
             <div className="text-xs uppercase tracking-wide text-slate-500">Overlapping Texts</div>
-            <div className="text-2xl font-bold text-slate-900 mt-1">{iaa?.pair_scores?.length ?? 0}</div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">{iaa?.document_scores?.length ?? 0}</div>
           </div>
         </div>
 
@@ -240,29 +240,27 @@ export default function ModelPerformancePage() {
             <thead className="bg-slate-100 text-slate-700">
               <tr>
                 <th className="text-left p-3">Document Snippet</th>
-                <th className="text-left p-3">User A</th>
-                <th className="text-left p-3">User B</th>
-                <th className="text-left p-3">Kappa</th>
+                <th className="text-left p-3">Unique Annotators</th>
+                <th className="text-left p-3">Average Kappa</th>
               </tr>
             </thead>
             <tbody>
-              {(!iaa?.pair_scores || iaa.pair_scores.length === 0) ? (
+              {(!iaa?.document_scores || iaa.document_scores.length === 0) ? (
                 <tr>
-                  <td className="p-3 text-slate-500 text-center" colSpan={4}>
+                  <td className="p-3 text-slate-500 text-center" colSpan={3}>
                     No overlapping annotations found between multiple users yet.
                   </td>
                 </tr>
               ) : (
-                iaa.pair_scores.map((pair, idx) => (
+                iaa.document_scores.map((doc, idx) => (
                   <tr key={idx} className="border-t border-slate-200">
-                    <td className="p-3 text-slate-700 italic truncate max-w-xs" title={pair.document_snippet}>"{pair.document_snippet}"</td>
-                    <td className="p-3 text-slate-700 font-mono text-xs">{pair.user1_id}</td>
-                    <td className="p-3 text-slate-700 font-mono text-xs">{pair.user2_id}</td>
+                    <td className="p-3 text-slate-700 italic truncate max-w-xs" title={doc.document_snippet}>"{doc.document_snippet}"</td>
+                    <td className="p-3 text-slate-700 font-medium">{doc.annotator_count}</td>
                     <td className={`p-3 font-medium ${
-                      pair.kappa_score >= 0.8 ? 'text-green-600' :
-                      pair.kappa_score >= 0.4 ? 'text-yellow-600' : 'text-red-600'
+                      doc.average_kappa >= 0.8 ? 'text-green-600' :
+                      doc.average_kappa >= 0.4 ? 'text-yellow-600' : 'text-red-600'
                     }`}>
-                      {pair.kappa_score.toFixed(3)}
+                      {doc.average_kappa.toFixed(3)}
                     </td>
                   </tr>
                 ))
