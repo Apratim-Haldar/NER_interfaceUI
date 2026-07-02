@@ -256,9 +256,10 @@ def save_feedback_edits(
     now_iso = datetime.now(timezone.utc).isoformat()
     normalized = [
         {
+            "user_id": user_id,
             "text": event.text,
-            "start": str(event.start),
-            "end": str(event.end),
+            "start_idx": event.start,
+            "end_idx": event.end,
             "old_bio_label": event.old_bio_label,
             "new_bio_label": event.new_bio_label,
             "created_at": now_iso,
@@ -267,8 +268,21 @@ def save_feedback_edits(
         if event.old_bio_label != event.new_bio_label
     ]
 
-    with _telemetry_lock:
-        _feedback_events_by_user.setdefault(user_id, []).extend(normalized)
+    if normalized:
+        supabase_url = _get_config_value("SUPABASE_URL") or _get_config_value("VITE_SUPABASE_URL")
+        service_role_key = _get_config_value("SUPABASE_SERVICE_ROLE_KEY")
+        if supabase_url and service_role_key:
+            endpoint = f"{supabase_url.rstrip('/')}/rest/v1/feedback_events"
+            headers = {
+                "apikey": service_role_key,
+                "Authorization": f"Bearer {service_role_key}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal"
+            }
+            try:
+                requests.post(endpoint, json=normalized, headers=headers)
+            except Exception as e:
+                print(f"Failed to save feedback events to Supabase: {e}")
 
     return {"saved": len(normalized)}
 
@@ -287,8 +301,31 @@ def save_feedback_analysis(
         [token.model_dump() for token in request.edited_tokens],
     )
 
-    with _telemetry_lock:
-        _feedback_analysis_by_user.setdefault(user_id, {})[request.analysis_id] = summary
+    supabase_url = _get_config_value("SUPABASE_URL") or _get_config_value("VITE_SUPABASE_URL")
+    service_role_key = _get_config_value("SUPABASE_SERVICE_ROLE_KEY")
+    if supabase_url and service_role_key:
+        endpoint = f"{supabase_url.rstrip('/')}/rest/v1/feedback_analyses?on_conflict=analysis_id"
+        headers = {
+            "apikey": service_role_key,
+            "Authorization": f"Bearer {service_role_key}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates, return=minimal"
+        }
+        db_payload = {
+            "analysis_id": request.analysis_id,
+            "user_id": user_id,
+            "total_tags_reviewed": summary["total_tags_reviewed"],
+            "correct_tags": summary["correct_tags"],
+            "wrong_tags": summary["wrong_tags"],
+            "changed_to_o": summary["changed_to_o"],
+            "changed_from_o": summary["changed_from_o"],
+            "transitions": summary["transitions"],
+            "new_label_distribution": summary["new_label_distribution"]
+        }
+        try:
+            requests.post(endpoint, json=db_payload, headers=headers)
+        except Exception as e:
+            print(f"Failed to save feedback analysis to Supabase: {e}")
 
     return {
         "saved": 1,
@@ -303,23 +340,43 @@ def get_feedback_metrics(current_user: CurrentUser = Depends(get_current_user)):
     if not user_id:
         raise HTTPException(status_code=401, detail="Missing user id")
 
-    with _telemetry_lock:
-        events = list(_feedback_events_by_user.get(user_id, []))
-        analyses = dict(_feedback_analysis_by_user.get(user_id, {}))
+    supabase_url = _get_config_value("SUPABASE_URL") or _get_config_value("VITE_SUPABASE_URL")
+    service_role_key = _get_config_value("SUPABASE_SERVICE_ROLE_KEY")
+    
+    analyses_list = []
+    events = []
+    if supabase_url and service_role_key:
+        headers = {
+            "apikey": service_role_key,
+            "Authorization": f"Bearer {service_role_key}",
+            "Content-Profile": "public"
+        }
+        try:
+            endpoint_analyses = f"{supabase_url.rstrip('/')}/rest/v1/feedback_analyses?user_id=eq.{user_id}"
+            res_a = requests.get(endpoint_analyses, headers=headers)
+            if res_a.status_code == 200:
+                analyses_list = res_a.json()
 
-    total_analyses = len(analyses)
+            endpoint_events = f"{supabase_url.rstrip('/')}/rest/v1/feedback_events?user_id=eq.{user_id}"
+            res_e = requests.get(endpoint_events, headers=headers)
+            if res_e.status_code == 200:
+                events = res_e.json()
+        except Exception as e:
+            print(f"Failed to fetch feedback from Supabase: {e}")
+
+    total_analyses = len(analyses_list)
     total_edits = len(events)
 
     if total_analyses > 0:
-        total_tags_reviewed = sum(int(item.get("total_tags_reviewed", 0)) for item in analyses.values())
-        correct_tags = sum(int(item.get("correct_tags", 0)) for item in analyses.values())
-        wrong_tags = sum(int(item.get("wrong_tags", 0)) for item in analyses.values())
-        changed_to_o = sum(int(item.get("changed_to_o", 0)) for item in analyses.values())
-        changed_from_o = sum(int(item.get("changed_from_o", 0)) for item in analyses.values())
+        total_tags_reviewed = sum(int(item.get("total_tags_reviewed", 0)) for item in analyses_list)
+        correct_tags = sum(int(item.get("correct_tags", 0)) for item in analyses_list)
+        wrong_tags = sum(int(item.get("wrong_tags", 0)) for item in analyses_list)
+        changed_to_o = sum(int(item.get("changed_to_o", 0)) for item in analyses_list)
+        changed_from_o = sum(int(item.get("changed_from_o", 0)) for item in analyses_list)
 
         transitions: Counter = Counter()
         new_distribution: Counter = Counter()
-        for item in analyses.values():
+        for item in analyses_list:
             transitions.update(item.get("transitions", {}))
             new_distribution.update(item.get("new_label_distribution", {}))
     else:

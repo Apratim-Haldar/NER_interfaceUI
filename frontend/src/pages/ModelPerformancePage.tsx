@@ -276,7 +276,13 @@ export default function ModelPerformancePage() {
           These metrics are user-specific. Unchanged BIO labels are treated as correct, and edited labels are treated as wrong.
         </p>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        {(!feedback || feedback.total_edits === 0) ? (
+          <div className="p-8 text-center text-slate-500 italic border-2 border-dashed border-slate-200 rounded-lg">
+            No feedbacks made so far. Edit a tag in the Named Entity Workspace to see your validation statistics here!
+          </div>
+        ) : (
+          <>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
             <div className="text-xs uppercase tracking-wide text-slate-500">Reviewed Analyses</div>
             <div className="text-2xl font-bold text-slate-900 mt-1">{feedback?.total_analyses ?? 0}</div>
@@ -351,6 +357,8 @@ export default function ModelPerformancePage() {
             </div>
           </div>
         </div>
+        </>
+        )}
       </section>
     </div>
   )
