@@ -14,6 +14,7 @@ import type {
 import { Card } from "../components/ui/card";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { saveFeedbackAnalysis, saveFeedbackEdits } from "../services/api";
+import { updatePredictionTokens } from "../services/predictions";
 import { supabase } from "../lib/supabase";
 
 const ALLOWED_BIO_LABELS = new Set([
@@ -34,6 +35,7 @@ interface WorkspaceSnapshot {
   spans: EntitySpan[];
   selectedIndex: number | null;
   analysisId: string;
+  predictionId: string | null;
   originalTokens: Token[];
   viewMode: "annotated" | "sentence";
   sentenceIndex: number;
@@ -183,6 +185,7 @@ export default function NamedEntityPage() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [inputText, setInputText] = useState<string>("");
   const [analysisId, setAnalysisId] = useState<string>("");
+  const [predictionId, setPredictionId] = useState<string | null>(null);
   const [originalTokens, setOriginalTokens] = useState<Token[]>([]);
   const [inputSectionKey, setInputSectionKey] = useState<number>(0);
   const [viewMode, setViewMode] = useState<"annotated" | "sentence">("annotated");
@@ -275,6 +278,7 @@ export default function NamedEntityPage() {
     setSpans([]);
     setSelectedIndex(null);
     setAnalysisId("");
+    setPredictionId(null);
     setOriginalTokens([]);
     setViewMode("annotated");
     setSentenceIndex(0);
@@ -367,6 +371,7 @@ export default function NamedEntityPage() {
     setSpans(mergeTokensToSpans(preloadedOutput.tokens, preloadedOutput.text));
     setOriginalTokens(preloadedOutput.tokens.map((token) => ({ ...token })));
     setAnalysisId(createAnalysisId());
+    setPredictionId(preloadItem.id);
     setSelectedIndex(null);
   };
 
@@ -387,7 +392,8 @@ export default function NamedEntityPage() {
     );
     setSelectedIndex(snapshot.selectedIndex);
     setAnalysisId(snapshot.analysisId);
-    setOriginalTokens(snapshot.originalTokens);
+    setPredictionId(snapshot.predictionId ?? null);
+    setOriginalTokens(snapshot.originalTokens ?? []);
     setViewMode(snapshot.viewMode);
     setSentenceIndex(snapshot.sentenceIndex);
   };
@@ -512,12 +518,14 @@ export default function NamedEntityPage() {
       return;
     }
 
+    if (!output) return;
     const snapshot: WorkspaceSnapshot = {
       inputText,
       output,
       spans,
       selectedIndex,
       analysisId,
+      predictionId,
       originalTokens,
       viewMode,
       sentenceIndex,
@@ -625,6 +633,12 @@ export default function NamedEntityPage() {
         console.error("Failed to persist feedback analysis", error);
       });
     }
+
+    if (predictionId) {
+      updatePredictionTokens(predictionId, updatedTokens).catch((error) => {
+        console.error("Failed to update prediction tokens for IAA", error);
+      });
+    }
   };
 
   return (
@@ -649,6 +663,7 @@ export default function NamedEntityPage() {
               text={inputText}
               setText={setInputText}
               setOutput={handlePrediction}
+              setPredictionId={setPredictionId}
             />
           </Card>
         </div>

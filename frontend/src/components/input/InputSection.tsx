@@ -8,9 +8,10 @@ interface Props {
   text: string
   setText: (text: string) => void
   setOutput: (data: PredictionResponse) => void
+  setPredictionId: (id: string | null) => void
 }
 
-export default function InputSection({ text, setText, setOutput }: Props) {
+export default function InputSection({ text, setText, setOutput, setPredictionId }: Props) {
   const [status, setStatus] = useState<string>("")
   const [uploadedPath, setUploadedPath] = useState<string | null>(null)
 
@@ -20,7 +21,8 @@ export default function InputSection({ text, setText, setOutput }: Props) {
       setStatus("Analyzing text...")
       const response = await predictText(text)
       setOutput(response.data)
-      await savePredictionHistory(text, response.data, uploadedPath)
+      const predId = await savePredictionHistory(text, response.data, uploadedPath)
+      setPredictionId(predId)
       setStatus("Analysis complete and saved to history")
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Analyze request failed")

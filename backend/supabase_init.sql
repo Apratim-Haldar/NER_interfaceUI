@@ -80,6 +80,13 @@ on public.predictions
 for insert
 with check (auth.uid() = user_id);
 
+drop policy if exists "predictions_update_own" on public.predictions;
+create policy "predictions_update_own"
+on public.predictions
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
 drop policy if exists "predictions_delete_own" on public.predictions;
 create policy "predictions_delete_own"
 on public.predictions

@@ -15,12 +15,25 @@ export async function savePredictionHistory(
     throw new Error("User session not found")
   }
 
-  const { error } = await supabase.from("predictions").insert({
+  const { data, error } = await supabase.from("predictions").insert({
     user_id: user.id,
     input_text: inputText,
     output_tokens: prediction.tokens,
     source_file_path: sourceFilePath,
-  })
+  }).select("id").single()
+
+  if (error) {
+    throw error
+  }
+
+  return data.id
+}
+
+export async function updatePredictionTokens(id: string, tokens: any[]) {
+  const { error } = await supabase
+    .from("predictions")
+    .update({ output_tokens: tokens })
+    .eq("id", id)
 
   if (error) {
     throw error
